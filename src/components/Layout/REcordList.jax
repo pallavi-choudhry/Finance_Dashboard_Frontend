@@ -1,0 +1,140 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
+import toast from 'react-hot-toast';
+import RecordForm from './RecordForm';
+
+const RecordList = () => {
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const { hasPermission } = useAuth();
+
+  useEffect(() => {
+    fetchRecords();
+  }, []);
+
+  const fetchRecords = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/records');
+      setRecords(response.data.data);
+    } catch (error) {
+      toast.error('Failed to load records');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this record?')) {
+      try {
+        await axios.delete(`http://localhost:5000/api/records/${id}`);
+        toast.success('Record deleted successfully');
+        fetchRecords();
+      } catch (error) {
+        toast.error('Failed to delete record');
+      }
+    }
+  };
+
+  const handleEdit = (record) => {
+    setEditingRecord(record);
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setEditingRecord(null);
+    fetchRecords();
+  };
+
+  if (loading) {
+    return <div className="loading">Loading records...</div>;
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+        <h1>Financial Records</h1>
+        {hasPermission('createRecords') && (
+          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+            Add Record
+          </button>
+        )}
+      </div>
+
+      {records.length === 0 ? (
+        <div className="card" style={{ textAlign: 'center' }}>
+          <p>No records found. Click "Add Record" to create one.</p>
+        </div>
+      ) : (
+        <div className="card">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>Type</th>
+                <th>Category</th>
+                <th>Date</th>
+                {(hasPermission('updateRecords') || hasPermission('deleteRecords')) && (
+                  <th>Actions</th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {records.map(record => (
+                <tr key={record._id}>
+                  <td>{record.title}</td>
+                  <td>{record.description}</td>
+                  <td style={{ color: record.type === 'income' ? '#28a745' : '#dc3545' }}>
+                    ${record.amount}
+                  </td>
+                  <td>{record.type}</td>
+                  <td>{record.category}</td>
+                  <td>{new Date(record.date).toLocaleDateString()}</td>
+                  {(hasPermission('updateRecords') || hasPermission('deleteRecords')) && (
+                    <td>
+                      {hasPermission('updateRecords') && (
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => handleEdit(record)}
+                          style={{ marginRight: '10px' }}
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {hasPermission('deleteRecords') && (
+                        <button
+                          className="btn btn-danger"
+                          onClick={() => handleDelete(record._id)}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showModal && (
+        <div className="modal">
+          <div className="modal-content">
+            <RecordForm
+              record={editingRecord}
+              onClose={handleCloseModal}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default RecordList;
